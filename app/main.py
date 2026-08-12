@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from app.routers import message, users, telegram
 
 from app.routers import message, users
 from app.database import engine, Base
@@ -37,4 +38,10 @@ app.include_router(
     message.router,
     prefix="/messages",
     tags=["Messages"]
+)
+
+app.include_router(
+    telegram.router,
+    prefix="/telegram",
+    tags=["Telegram"]
 )
