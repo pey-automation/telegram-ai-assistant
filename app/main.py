@@ -45,3 +45,19 @@ app.include_router(
     prefix="/telegram",
     tags=["Telegram"]
 )
+from fastapi import FastAPI
+
+from app.routers import message, users, telegram
+
+app = FastAPI()
+
+app.include_router(message.router)
+app.include_router(users.router)
+app.include_router(telegram.router)
+
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok"
+    }

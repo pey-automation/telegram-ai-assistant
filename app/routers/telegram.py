@@ -1,12 +1,16 @@
 from fastapi import APIRouter
+from pydantic import BaseModel
 
 
 router = APIRouter()
 
 
+class TelegramMessage(BaseModel):
+    message: dict
+
+
 @router.post("/webhook")
-def telegram_webhook(update: dict):
+def telegram_webhook(data: TelegramMessage):
     return {
-        "received": True,
-        "update": update
+        "message": data.message
     }
