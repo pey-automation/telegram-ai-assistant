@@ -9,12 +9,25 @@ from app.schemas import MessageCreate, MessageResponse
 router = APIRouter()
 
 
+# Health Check
+@router.get("/health")
+def health_check():
+    return {
+        "status": "ok"
+    }
+
+
+# Create Message
 @router.post("/", response_model=MessageResponse)
 def create_message(
     message: MessageCreate,
     db: Session = Depends(get_db)
 ):
-    user = db.query(User).filter(User.id == message.user_id).first()
+    user = (
+        db.query(User)
+        .filter(User.id == message.user_id)
+        .first()
+    )
 
     if user is None:
         raise HTTPException(
@@ -34,14 +47,20 @@ def create_message(
     return new_message
 
 
+# Get All Messages
 @router.get("/", response_model=list[MessageResponse])
 def get_messages(
     db: Session = Depends(get_db)
 ):
-    messages = db.query(Message).all()
+    messages = (
+        db.query(Message)
+        .all()
+    )
 
     return messages
 
+
+# Get Message By ID
 @router.get("/{message_id}", response_model=MessageResponse)
 def get_message(
     message_id: int,
@@ -61,6 +80,8 @@ def get_message(
 
     return message
 
+
+# Delete Message
 @router.delete("/{message_id}")
 def delete_message(
     message_id: int,
