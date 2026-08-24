@@ -1,5 +1,6 @@
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
+from datetime import datetime, timezone
 
 from app.database import Base
 
@@ -7,62 +8,78 @@ from app.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(
+    id = Column(Integer, primary_key=True, index=True)
+
+    name = Column(String, nullable=False)
+
+    age = Column(Integer, nullable=False)
+
+    telegram_user_id = Column(Integer, unique=True, index=True, nullable=True)
+
+    username = Column(String, nullable=True)
+
+    conversations = relationship(
+        "Conversation",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
         Integer,
-        primary_key=True,
-        index=True,
+        ForeignKey("users.id"),
+        nullable=False
     )
 
-    telegram_user_id = Column(
-        Integer,
-        unique=True,
-        index=True,
-        nullable=True,
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
     )
 
-    username = Column(
-        String,
-        nullable=True,
-    )
-
-    name = Column(
-        String,
-        nullable=False,
-    )
-
-    age = Column(
-        Integer,
-        nullable=False,
+    user = relationship(
+        "User",
+        back_populates="conversations"
     )
 
     messages = relationship(
         "Message",
-        back_populates="user",
-        cascade="all, delete-orphan",
+        back_populates="conversation",
+        cascade="all, delete-orphan"
     )
 
 
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(
-        Integer,
-        primary_key=True,
-        index=True,
-    )
+    id = Column(Integer, primary_key=True, index=True)
 
-    text = Column(
-        String,
-        nullable=False,
-    )
+    text = Column(String, nullable=False)
 
     user_id = Column(
         Integer,
         ForeignKey("users.id"),
-        nullable=False,
+        nullable=False
     )
 
-    user = relationship(
-        "User",
-        back_populates="messages",
+    conversation_id = Column(
+        Integer,
+        ForeignKey("conversations.id"),
+        nullable=True
+    )
+
+    role = Column(
+        String,
+        nullable=False,
+        default="user"
+    )
+
+    conversation = relationship(
+        "Conversation",
+        back_populates="messages"
     )
