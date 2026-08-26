@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Message, User
+from app.models import Message, Conversation
 from app.schemas import MessageCreate, MessageResponse
 
 
@@ -33,6 +33,41 @@ def get_messages(
 ):
     messages = (
         db.query(Message)
+        .order_by(Message.id.asc())
+        .all()
+    )
+
+    return messages
+
+
+# =========================
+# Get Messages By Conversation
+# =========================
+
+@router.get(
+    "/conversation/{conversation_id}",
+    response_model=list[MessageResponse],
+)
+def get_conversation_messages(
+    conversation_id: int,
+    db: Session = Depends(get_db),
+):
+    conversation = (
+        db.query(Conversation)
+        .filter(Conversation.id == conversation_id)
+        .first()
+    )
+
+    if conversation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Conversation not found",
+        )
+
+    messages = (
+        db.query(Message)
+        .filter(Message.conversation_id == conversation_id)
+        .order_by(Message.id.asc())
         .all()
     )
 
@@ -51,21 +86,11 @@ def create_message(
     message: MessageCreate,
     db: Session = Depends(get_db),
 ):
-    user = (
-        db.query(User)
-        .filter(User.id == message.user_id)
-        .first()
-    )
-
-    if user is None:
-        raise HTTPException(
-            status_code=404,
-            detail="User not found",
-        )
-
     new_message = Message(
         text=message.text,
         user_id=message.user_id,
+        conversation_id=message.conversation_id,
+        role=message.role,
     )
 
     db.add(new_message)
@@ -73,59 +98,3 @@ def create_message(
     db.refresh(new_message)
 
     return new_message
-
-
-# =========================
-# Get Message By ID
-# =========================
-
-@router.get(
-    "/{message_id}",
-    response_model=MessageResponse,
-)
-def get_message(
-    message_id: int,
-    db: Session = Depends(get_db),
-):
-    message = (
-        db.query(Message)
-        .filter(Message.id == message_id)
-        .first()
-    )
-
-    if message is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Message not found",
-        )
-
-    return message
-
-
-# =========================
-# Delete Message
-# =========================
-
-@router.delete("/{message_id}")
-def delete_message(
-    message_id: int,
-    db: Session = Depends(get_db),
-):
-    message = (
-        db.query(Message)
-        .filter(Message.id == message_id)
-        .first()
-    )
-
-    if message is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Message not found",
-        )
-
-    db.delete(message)
-    db.commit()
-
-    return {
-        "message": "Message deleted successfully",
-    }
