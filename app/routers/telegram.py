@@ -14,54 +14,12 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models import User, Conversation, Message
 from app.services.ai_service import generate_ai_response
+from app.services.user_service import get_or_create_user
 
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-
-# =========================
-# User
-# =========================
-
-def get_or_create_user(telegram_user):
-    db: Session = SessionLocal()
-
-    try:
-        user = (
-            db.query(User)
-            .filter(
-                User.telegram_user_id == telegram_user.id
-            )
-            .first()
-        )
-
-        if user is None:
-            user = User(
-                name=telegram_user.first_name or "Telegram User",
-                age=0,
-                telegram_user_id=telegram_user.id,
-                username=telegram_user.username,
-            )
-
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        else:
-            user.username = telegram_user.username
-
-            if telegram_user.first_name:
-                user.name = telegram_user.first_name
-
-            db.commit()
-            db.refresh(user)
-
-        return user
-
-    finally:
-        db.close()
 
 
 # =========================
@@ -89,24 +47,6 @@ def get_or_create_conversation(user_id: int):
             db.add(conversation)
             db.commit()
             db.refresh(conversation)
-
-        return conversation
-
-    finally:
-        db.close()
-
-
-def create_new_conversation(user_id: int):
-    db: Session = SessionLocal()
-
-    try:
-        conversation = Conversation(
-            user_id=user_id
-        )
-
-        db.add(conversation)
-        db.commit()
-        db.refresh(conversation)
 
         return conversation
 
@@ -199,41 +139,21 @@ async def start(
 
     telegram_user = update.effective_user
 
-    user = get_or_create_user(telegram_user)
+    db: Session = SessionLocal()
+
+    try:
+        user = get_or_create_user(
+            db,
+            telegram_user,
+        )
+    finally:
+        db.close()
 
     get_or_create_conversation(user.id)
 
     await update.message.reply_text(
         "سلام 👋\n"
         "من آماده‌ام. پیامت رو بفرست."
-    )
-
-
-# =========================
-# /new
-# =========================
-
-async def new_conversation(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
-    if (
-        update.message is None
-        or update.effective_user is None
-    ):
-        return
-
-    telegram_user = update.effective_user
-
-    user = get_or_create_user(telegram_user)
-
-    conversation = create_new_conversation(
-        user.id
-    )
-
-    await update.message.reply_text(
-        "گفت‌وگوی جدید ساخته شد. 🆕\n"
-        "از اینجا به بعد یک Conversation جدید داریم."
     )
 
 
@@ -257,10 +177,20 @@ async def echo(
     telegram_user = update.effective_user
 
     # 1. Find/Create User
-    user = get_or_create_user(telegram_user)
+    db: Session = SessionLocal()
+
+    try:
+        user = get_or_create_user(
+            db,
+            telegram_user,
+        )
+    finally:
+        db.close()
 
     # 2. Find/Create Conversation
-    conversation = get_or_create_conversation(user.id)
+    conversation = get_or_create_conversation(
+        user.id
+    )
 
     # 3. Save User Message
     save_message(
@@ -329,13 +259,6 @@ def create_bot():
         CommandHandler(
             "start",
             start,
-        )
-    )
-
-    application.add_handler(
-        CommandHandler(
-            "new",
-            new_conversation,
         )
     )
 
