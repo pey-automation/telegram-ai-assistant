@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.routers import conversation
 from app.database import Base, engine
 from app import models
 
@@ -65,4 +66,10 @@ app.include_router(
     message.router,
     prefix="/messages",
     tags=["Messages"],
+)
+
+app.include_router(
+    conversation.router,
+    prefix="/conversations",
+    tags=["Conversations"],
 )
