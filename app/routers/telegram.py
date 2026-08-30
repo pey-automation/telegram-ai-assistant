@@ -96,6 +96,24 @@ def get_or_create_conversation(user_id: int):
         db.close()
 
 
+def create_new_conversation(user_id: int):
+    db: Session = SessionLocal()
+
+    try:
+        conversation = Conversation(
+            user_id=user_id
+        )
+
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+
+        return conversation
+
+    finally:
+        db.close()
+
+
 # =========================
 # Save Message
 # =========================
@@ -192,6 +210,34 @@ async def start(
 
 
 # =========================
+# /new
+# =========================
+
+async def new_conversation(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+):
+    if (
+        update.message is None
+        or update.effective_user is None
+    ):
+        return
+
+    telegram_user = update.effective_user
+
+    user = get_or_create_user(telegram_user)
+
+    conversation = create_new_conversation(
+        user.id
+    )
+
+    await update.message.reply_text(
+        "گفت‌وگوی جدید ساخته شد. 🆕\n"
+        "از اینجا به بعد یک Conversation جدید داریم."
+    )
+
+
+# =========================
 # Handle Messages
 # =========================
 
@@ -283,6 +329,13 @@ def create_bot():
         CommandHandler(
             "start",
             start,
+        )
+    )
+
+    application.add_handler(
+        CommandHandler(
+            "new",
+            new_conversation,
         )
     )
 
