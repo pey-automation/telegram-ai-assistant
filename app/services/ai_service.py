@@ -28,3 +28,12 @@ def generate_ai_response(history):
     )
 
     return response.choices[0].message.content
+
+def format_conversation_history(messages):
+    return [
+        {
+            "role": message.role,
+            "content": message.text,
+        }
+        for message in messages
+    ]

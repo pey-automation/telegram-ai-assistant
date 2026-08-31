@@ -12,7 +12,10 @@ from telegram.ext import (
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.services.ai_service import generate_ai_response
+from app.services.ai_service import (
+    generate_ai_response,
+    format_conversation_history,
+)
 from app.services.user_service import get_or_create_user
 from app.services.conversation_service import get_or_create_conversation
 from app.services.message_service import (
@@ -30,14 +33,6 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 # Format History for AI
 # =========================
 
-def format_conversation_history(messages):
-    return [
-        {
-            "role": message.role,
-            "content": message.text,
-        }
-        for message in messages
-    ]
 
 
 # =========================
