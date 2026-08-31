@@ -12,101 +12,18 @@ from telegram.ext import (
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import User, Conversation, Message
 from app.services.ai_service import generate_ai_response
 from app.services.user_service import get_or_create_user
+from app.services.conversation_service import get_or_create_conversation
+from app.services.message_service import (
+    save_message,
+    get_conversation_messages,
+)
 
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-
-# =========================
-# Conversation
-# =========================
-
-def get_or_create_conversation(user_id: int):
-    db: Session = SessionLocal()
-
-    try:
-        conversation = (
-            db.query(Conversation)
-            .filter(
-                Conversation.user_id == user_id
-            )
-            .order_by(Conversation.id.desc())
-            .first()
-        )
-
-        if conversation is None:
-            conversation = Conversation(
-                user_id=user_id
-            )
-
-            db.add(conversation)
-            db.commit()
-            db.refresh(conversation)
-
-        return conversation
-
-    finally:
-        db.close()
-
-
-# =========================
-# Save Message
-# =========================
-
-def save_message(
-    user_id: int,
-    conversation_id: int,
-    text: str,
-    role: str,
-):
-    db: Session = SessionLocal()
-
-    try:
-        message = Message(
-            text=text,
-            user_id=user_id,
-            conversation_id=conversation_id,
-            role=role,
-        )
-
-        db.add(message)
-        db.commit()
-        db.refresh(message)
-
-        return message
-
-    finally:
-        db.close()
-
-
-# =========================
-# Get Conversation History
-# =========================
-
-def get_conversation_messages(
-    conversation_id: int,
-):
-    db: Session = SessionLocal()
-
-    try:
-        messages = (
-            db.query(Message)
-            .filter(
-                Message.conversation_id == conversation_id
-            )
-            .order_by(Message.id.asc())
-            .all()
-        )
-
-        return messages
-
-    finally:
-        db.close()
 
 
 # =========================
@@ -139,6 +56,7 @@ async def start(
 
     telegram_user = update.effective_user
 
+    # 1. Find/Create User
     db: Session = SessionLocal()
 
     try:
@@ -149,7 +67,16 @@ async def start(
     finally:
         db.close()
 
-    get_or_create_conversation(user.id)
+    # 2. Find/Create Conversation
+    db: Session = SessionLocal()
+
+    try:
+        get_or_create_conversation(
+            db,
+            user.id,
+        )
+    finally:
+        db.close()
 
     await update.message.reply_text(
         "سلام 👋\n"
@@ -188,22 +115,40 @@ async def echo(
         db.close()
 
     # 2. Find/Create Conversation
-    conversation = get_or_create_conversation(
-        user.id
-    )
+    db: Session = SessionLocal()
+
+    try:
+        conversation = get_or_create_conversation(
+            db,
+            user.id,
+        )
+    finally:
+        db.close()
 
     # 3. Save User Message
-    save_message(
-        user_id=user.id,
-        conversation_id=conversation.id,
-        text=text,
-        role="user",
-    )
+    db: Session = SessionLocal()
+
+    try:
+        save_message(
+            db=db,
+            user_id=user.id,
+            conversation_id=conversation.id,
+            text=text,
+            role="user",
+        )
+    finally:
+        db.close()
 
     # 4. Get Conversation History
-    messages = get_conversation_messages(
-        conversation.id
-    )
+    db: Session = SessionLocal()
+
+    try:
+        messages = get_conversation_messages(
+            db=db,
+            conversation_id=conversation.id,
+        )
+    finally:
+        db.close()
 
     # 5. Format History for AI
     history = format_conversation_history(
@@ -226,12 +171,18 @@ async def echo(
         return
 
     # 7. Save AI Response
-    save_message(
-        user_id=user.id,
-        conversation_id=conversation.id,
-        text=ai_response,
-        role="assistant",
-    )
+    db: Session = SessionLocal()
+
+    try:
+        save_message(
+            db=db,
+            user_id=user.id,
+            conversation_id=conversation.id,
+            text=ai_response,
+            role="assistant",
+        )
+    finally:
+        db.close()
 
     # 8. Send AI Response to Telegram
     await update.message.reply_text(
