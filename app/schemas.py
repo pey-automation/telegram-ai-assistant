@@ -52,24 +52,13 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
-class UserUpdate(BaseModel):
-    name: Optional[str] = Field(
-        default=None,
-        min_length=2,
-        max_length=50,
-    )
+# =========================
+# Conversation Schemas
+# =========================
 
-    age: Optional[int] = Field(
-        default=None,
-        ge=0,
-        le=120,
-    )
-
-
-class UserResponse(BaseModel):
+class ConversationResponse(BaseModel):
     id: int
-    name: str
-    age: int
+    user_id: int
 
     class Config:
         from_attributes = True
@@ -88,11 +77,17 @@ class MessageCreate(BaseModel):
 
     user_id: int
 
+    conversation_id: Optional[int] = None
+
+    role: str = "user"
+
 
 class MessageResponse(BaseModel):
     id: int
     text: str
     user_id: int
+    conversation_id: Optional[int] = None
+    role: str
 
     class Config:
         from_attributes = True

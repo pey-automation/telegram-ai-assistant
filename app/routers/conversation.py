@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Conversation, User
+from app.schemas import ConversationResponse
 
 
 router = APIRouter()
@@ -12,7 +13,10 @@ router = APIRouter()
 # Get User Conversations
 # =========================
 
-@router.get("/")
+@router.get(
+    "/",
+    response_model=list[ConversationResponse],
+)
 def get_conversations(
     user_id: int,
     db: Session = Depends(get_db),
@@ -45,7 +49,10 @@ def get_conversations(
 # Get Conversation By ID
 # =========================
 
-@router.get("/{conversation_id}")
+@router.get(
+    "/{conversation_id}",
+    response_model=ConversationResponse,
+)
 def get_conversation(
     conversation_id: int,
     db: Session = Depends(get_db),
