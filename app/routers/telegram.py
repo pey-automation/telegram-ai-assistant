@@ -1,3 +1,4 @@
+import logging
 import os
 
 from dotenv import load_dotenv
@@ -30,9 +31,15 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 
 # =========================
-# Format History for AI
+# Logging
 # =========================
 
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    level=logging.INFO,
+)
+
+logger = logging.getLogger(__name__)
 
 
 # =========================
@@ -51,32 +58,48 @@ async def start(
 
     telegram_user = update.effective_user
 
-    # 1. Find/Create User
-    db: Session = SessionLocal()
-
     try:
-        user = get_or_create_user(
-            db,
-            telegram_user,
+        # 1. Find/Create User
+        db: Session = SessionLocal()
+
+        try:
+            user = get_or_create_user(
+                db,
+                telegram_user,
+            )
+        finally:
+            db.close()
+
+        # 2. Find/Create Conversation
+        db: Session = SessionLocal()
+
+        try:
+            get_or_create_conversation(
+                db,
+                user.id,
+            )
+        finally:
+            db.close()
+
+        await update.message.reply_text(
+            "سلام 👋\n"
+            "من آماده‌ام. پیامت رو بفرست."
         )
-    finally:
-        db.close()
 
-    # 2. Find/Create Conversation
-    db: Session = SessionLocal()
-
-    try:
-        get_or_create_conversation(
-            db,
-            user.id,
+        logger.info(
+            "User started bot: telegram_user_id=%s",
+            telegram_user.id,
         )
-    finally:
-        db.close()
 
-    await update.message.reply_text(
-        "سلام 👋\n"
-        "من آماده‌ام. پیامت رو بفرست."
-    )
+    except Exception:
+        logger.exception(
+            "Error in /start: telegram_user_id=%s",
+            telegram_user.id,
+        )
+
+        await update.message.reply_text(
+            "متأسفانه مشکلی پیش اومد. لطفاً دوباره تلاش کن."
+        )
 
 
 # =========================
@@ -98,91 +121,112 @@ async def echo(
 
     telegram_user = update.effective_user
 
-    # 1. Find/Create User
-    db: Session = SessionLocal()
-
     try:
-        user = get_or_create_user(
-            db,
-            telegram_user,
-        )
-    finally:
-        db.close()
+        # 1. Find/Create User
+        db: Session = SessionLocal()
 
-    # 2. Find/Create Conversation
-    db: Session = SessionLocal()
+        try:
+            user = get_or_create_user(
+                db,
+                telegram_user,
+            )
+        finally:
+            db.close()
 
-    try:
-        conversation = get_or_create_conversation(
-            db,
-            user.id,
-        )
-    finally:
-        db.close()
+        # 2. Find/Create Conversation
+        db: Session = SessionLocal()
 
-    # 3. Save User Message
-    db: Session = SessionLocal()
+        try:
+            conversation = get_or_create_conversation(
+                db,
+                user.id,
+            )
+        finally:
+            db.close()
 
-    try:
-        save_message(
-            db=db,
-            user_id=user.id,
-            conversation_id=conversation.id,
-            text=text,
-            role="user",
-        )
-    finally:
-        db.close()
+        # 3. Save User Message
+        db: Session = SessionLocal()
 
-    # 4. Get Conversation History
-    db: Session = SessionLocal()
+        try:
+            save_message(
+                db=db,
+                user_id=user.id,
+                conversation_id=conversation.id,
+                text=text,
+                role="user",
+            )
+        finally:
+            db.close()
 
-    try:
-        messages = get_conversation_messages(
-            db=db,
-            conversation_id=conversation.id,
-        )
-    finally:
-        db.close()
+        # 4. Get Conversation History
+        db: Session = SessionLocal()
 
-    # 5. Format History for AI
-    history = format_conversation_history(
-        messages
-    )
+        try:
+            messages = get_conversation_messages(
+                db=db,
+                conversation_id=conversation.id,
+            )
+        finally:
+            db.close()
 
-    # 6. Generate AI Response
-    try:
-        ai_response = generate_ai_response(
-            history
+        # 5. Format History for AI
+        history = format_conversation_history(
+            messages
         )
 
-    except Exception as error:
-        print("AI ERROR:", error)
+        # 6. Generate AI Response
+        try:
+            ai_response = generate_ai_response(
+                history
+            )
+
+        except Exception:
+            logger.exception(
+                "AI service error: telegram_user_id=%s conversation_id=%s",
+                telegram_user.id,
+                conversation.id,
+            )
+
+            await update.message.reply_text(
+                "متأسفانه در ارتباط با سرویس هوش مصنوعی مشکلی پیش اومد."
+            )
+
+            return
+
+        # 7. Save AI Response
+        db: Session = SessionLocal()
+
+        try:
+            save_message(
+                db=db,
+                user_id=user.id,
+                conversation_id=conversation.id,
+                text=ai_response,
+                role="assistant",
+            )
+        finally:
+            db.close()
+
+        # 8. Send AI Response to Telegram
+        await update.message.reply_text(
+            ai_response
+        )
+
+        logger.info(
+            "Message processed successfully: telegram_user_id=%s conversation_id=%s",
+            telegram_user.id,
+            conversation.id,
+        )
+
+    except Exception:
+        logger.exception(
+            "Unexpected error while processing message: telegram_user_id=%s",
+            telegram_user.id,
+        )
 
         await update.message.reply_text(
-            "متأسفانه در ارتباط با سرویس هوش مصنوعی مشکلی پیش اومد."
+            "متأسفانه مشکلی در پردازش پیام پیش اومد. لطفاً دوباره تلاش کن."
         )
-
-        return
-
-    # 7. Save AI Response
-    db: Session = SessionLocal()
-
-    try:
-        save_message(
-            db=db,
-            user_id=user.id,
-            conversation_id=conversation.id,
-            text=ai_response,
-            role="assistant",
-        )
-    finally:
-        db.close()
-
-    # 8. Send AI Response to Telegram
-    await update.message.reply_text(
-        ai_response
-    )
 
 
 # =========================
