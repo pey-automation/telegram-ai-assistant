@@ -1,0 +1,64 @@
+services:
+
+  db:
+    image: postgres:17
+    container_name: telegram_ai_db
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: telegram_ai
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    ports:
+      - "5432:5432"
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d telegram_ai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+
+  api:
+    build: .
+    container_name: telegram_ai_api
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/telegram_ai
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      - "8000:8000"
+
+
+  bot:
+    build: .
+    container_name: telegram_ai_bot
+    restart: unless-stopped
+
+    env_file:
+      - .env
+
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/telegram_ai
+
+    command: python run_bot.py
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+
+volumes:
+  postgres_data:
