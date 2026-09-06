@@ -76,17 +76,15 @@ class MessageCreate(BaseModel):
     )
 
     user_id: int
-
-    conversation_id: Optional[int] = None
-
-    role: str = "user"
+    conversation_id: int
+    role: str
 
 
 class MessageResponse(BaseModel):
     id: int
     text: str
     user_id: int
-    conversation_id: Optional[int] = None
+    conversation_id: int
     role: str
 
     class Config:
