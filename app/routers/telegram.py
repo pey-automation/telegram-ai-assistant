@@ -24,15 +24,9 @@ from app.services.message_service import (
     get_conversation_messages,
 )
 
-
 load_dotenv()
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-
-
-# =========================
-# Logging
-# =========================
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -42,14 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-# =========================
-# /start
-# =========================
-
-async def start(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if (
         update.message is None
         or update.effective_user is None
@@ -59,9 +46,7 @@ async def start(
     telegram_user = update.effective_user
 
     try:
-        # 1. Find/Create User
         db: Session = SessionLocal()
-
         try:
             user = get_or_create_user(
                 db,
@@ -70,9 +55,7 @@ async def start(
         finally:
             db.close()
 
-        # 2. Find/Create Conversation
         db: Session = SessionLocal()
-
         try:
             get_or_create_conversation(
                 db,
@@ -102,14 +85,7 @@ async def start(
         )
 
 
-# =========================
-# Handle Messages
-# =========================
-
-async def echo(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,
-):
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if (
         update.message is None
         or update.message.text is None
@@ -118,13 +94,11 @@ async def echo(
         return
 
     text = update.message.text
-
     telegram_user = update.effective_user
 
     try:
-        # 1. Find/Create User
+        # 1. Get or create user
         db: Session = SessionLocal()
-
         try:
             user = get_or_create_user(
                 db,
@@ -133,9 +107,8 @@ async def echo(
         finally:
             db.close()
 
-        # 2. Find/Create Conversation
+        # 2. Get or create conversation
         db: Session = SessionLocal()
-
         try:
             conversation = get_or_create_conversation(
                 db,
@@ -144,9 +117,8 @@ async def echo(
         finally:
             db.close()
 
-        # 3. Save User Message
+        # 3. Save user message
         db: Session = SessionLocal()
-
         try:
             save_message(
                 db=db,
@@ -158,9 +130,8 @@ async def echo(
         finally:
             db.close()
 
-        # 4. Get Conversation History
+        # 4. Get conversation history
         db: Session = SessionLocal()
-
         try:
             messages = get_conversation_messages(
                 db=db,
@@ -169,15 +140,15 @@ async def echo(
         finally:
             db.close()
 
-        # 5. Format History for AI
         history = format_conversation_history(
             messages
         )
 
-        # 6. Generate AI Response
+        # 5. Generate AI response
         try:
             ai_response = generate_ai_response(
-                history
+                history=history,
+                user_id=user.id,
             )
 
         except Exception:
@@ -190,12 +161,10 @@ async def echo(
             await update.message.reply_text(
                 "متأسفانه در ارتباط با سرویس هوش مصنوعی مشکلی پیش اومد."
             )
-
             return
 
-        # 7. Save AI Response
+        # 6. Save assistant message
         db: Session = SessionLocal()
-
         try:
             save_message(
                 db=db,
@@ -207,7 +176,7 @@ async def echo(
         finally:
             db.close()
 
-        # 8. Send AI Response to Telegram
+        # 7. Send response to Telegram
         await update.message.reply_text(
             ai_response
         )
@@ -228,10 +197,6 @@ async def echo(
             "متأسفانه مشکلی در پردازش پیام پیش اومد. لطفاً دوباره تلاش کن."
         )
 
-
-# =========================
-# Create Bot
-# =========================
 
 def create_bot():
     if not BOT_TOKEN:

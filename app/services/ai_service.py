@@ -1,7 +1,11 @@
+import json
 import os
 
 from dotenv import load_dotenv
 from groq import Groq
+
+from app.database import SessionLocal
+from app.services.user_service import get_user_info
 
 
 load_dotenv()
@@ -33,6 +37,7 @@ Rules:
 - Use the conversation history to understand context.
 - Do not invent previous conversation details.
 - Respond in the same language as the user unless the user asks for another language.
+- When the user asks about their own stored information, use the available tools instead of guessing.
 """
 
 
@@ -46,7 +51,65 @@ def format_conversation_history(messages):
     ]
 
 
-def generate_ai_response(history):
+# =========================
+# Tools
+# =========================
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_user_info",
+            "description": (
+                "Get the current Telegram user's stored information "
+                "from the database."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    }
+]
+
+
+def execute_get_user_info(user_id: int):
+    db = SessionLocal()
+
+    try:
+        user = get_user_info(
+            db=db,
+            user_id=user_id,
+        )
+
+        if user is None:
+            return {
+                "found": False,
+                "message": "User was not found.",
+            }
+
+        return {
+            "found": True,
+            "id": user.id,
+            "name": user.name,
+            "age": user.age,
+            "username": user.username,
+            "telegram_user_id": user.telegram_user_id,
+        }
+
+    finally:
+        db.close()
+
+
+# =========================
+# AI Response
+# =========================
+
+def generate_ai_response(
+    history,
+    user_id: int,
+):
     messages = [
         {
             "role": "system",
@@ -55,9 +118,54 @@ def generate_ai_response(history):
         *history,
     ]
 
-    response = client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=messages,
-    )
+    for _ in range(3):
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+        )
 
-    return response.choices[0].message.content
+        response_message = response.choices[0].message
+
+        if not response_message.tool_calls:
+            return response_message.content
+
+        messages.append(
+            response_message.model_dump()
+        )
+
+        for tool_call in response_message.tool_calls:
+            function_name = tool_call.function.name
+
+            try:
+                arguments = json.loads(
+                    tool_call.function.arguments or "{}"
+                )
+            except json.JSONDecodeError:
+                arguments = {}
+
+            if function_name == "get_user_info":
+                tool_result = execute_get_user_info(
+                    user_id=user_id
+                )
+            else:
+                tool_result = {
+                    "error": f"Unknown tool: {function_name}"
+                }
+
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "name": function_name,
+                    "content": json.dumps(
+                        tool_result,
+                        ensure_ascii=False,
+                    ),
+                }
+            )
+
+    raise RuntimeError(
+        "Maximum tool-calling iterations exceeded."
+    )

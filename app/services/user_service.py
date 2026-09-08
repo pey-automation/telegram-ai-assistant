@@ -38,3 +38,14 @@ def get_or_create_user(
         db.refresh(user)
 
     return user
+
+
+def get_user_info(
+    db: Session,
+    user_id: int,
+):
+    return (
+        db.query(User)
+        .filter(User.id == user_id)
+        .first()
+    )
