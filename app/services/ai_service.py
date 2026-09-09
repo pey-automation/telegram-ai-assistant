@@ -103,6 +103,32 @@ def execute_get_user_info(user_id: int):
 
 
 # =========================
+# Action Registry
+# =========================
+
+ACTION_HANDLERS = {
+    "get_user_info": execute_get_user_info,
+}
+
+
+def execute_tool(
+    function_name: str,
+    user_id: int,
+    arguments: dict,
+):
+    handler = ACTION_HANDLERS.get(function_name)
+
+    if handler is None:
+        return {
+            "error": f"Unknown tool: {function_name}"
+        }
+
+    return handler(
+        user_id=user_id,
+    )
+
+
+# =========================
 # AI Response
 # =========================
 
@@ -145,14 +171,11 @@ def generate_ai_response(
             except json.JSONDecodeError:
                 arguments = {}
 
-            if function_name == "get_user_info":
-                tool_result = execute_get_user_info(
-                    user_id=user_id
-                )
-            else:
-                tool_result = {
-                    "error": f"Unknown tool: {function_name}"
-                }
+            tool_result = execute_tool(
+                function_name=function_name,
+                user_id=user_id,
+                arguments=arguments,
+            )
 
             messages.append(
                 {
