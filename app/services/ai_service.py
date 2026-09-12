@@ -238,8 +238,22 @@ def generate_ai_response(
             return response_message.content
 
         messages.append(
-            response_message.model_dump()
-        )
+    {
+        "role": "assistant",
+        "content": response_message.content or "",
+        "tool_calls": [
+            {
+                "id": tool_call.id,
+                "type": "function",
+                "function": {
+                    "name": tool_call.function.name,
+                    "arguments": tool_call.function.arguments,
+                },
+            }
+            for tool_call in response_message.tool_calls
+        ],
+    }
+)
 
         for tool_call in response_message.tool_calls:
             function_name = tool_call.function.name
