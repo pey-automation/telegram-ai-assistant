@@ -24,6 +24,55 @@ class User(Base):
         cascade="all, delete-orphan"
     )
 
+    orders = relationship(
+        "Order",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+
+
+class Order(Base):
+    __tablename__ = "orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    user_id = Column(
+        Integer,
+        ForeignKey("users.id"),
+        nullable=False
+    )
+
+    customer_name = Column(
+        String,
+        nullable=False
+    )
+
+    item = Column(
+        String,
+        nullable=False
+    )
+
+    quantity = Column(
+        Integer,
+        nullable=False
+    )
+
+    amount = Column(
+        Integer,
+        nullable=False
+    )
+
+    created_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+
+    user = relationship(
+        "User",
+        back_populates="orders"
+    )
+
 
 class Conversation(Base):
     __tablename__ = "conversations"
@@ -59,7 +108,10 @@ class Message(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    text = Column(String, nullable=False)
+    text = Column(
+        String,
+        nullable=False
+    )
 
     user_id = Column(
         Integer,

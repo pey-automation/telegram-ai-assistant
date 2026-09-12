@@ -1,5 +1,6 @@
 import json
 import os
+from app.services.order_service import create_order
 
 from dotenv import load_dotenv
 from groq import Groq
@@ -70,7 +71,45 @@ TOOLS = [
                 "required": [],
             },
         },
-    }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_order",
+            "description": (
+                "Create a new order for the current Telegram user."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "customer_name": {
+                        "type": "string",
+                        "description": "Name of the customer.",
+                    },
+                    "item": {
+                        "type": "string",
+                        "description": "Name of the ordered item.",
+                    },
+                    "quantity": {
+                        "type": "integer",
+                        "description": "Number of items ordered.",
+                    },
+                    "amount": {
+                        "type": "integer",
+                        "description": (
+                            "Total order amount as an integer."
+                        ),
+                    },
+                },
+                "required": [
+                    "customer_name",
+                    "item",
+                    "quantity",
+                    "amount",
+                ],
+            },
+        },
+    },
 ]
 
 
@@ -101,6 +140,37 @@ def execute_get_user_info(user_id: int):
     finally:
         db.close()
 
+def execute_create_order(
+    user_id: int,
+    customer_name: str,
+    item: str,
+    quantity: int,
+    amount: int,
+):
+    db = SessionLocal()
+
+    try:
+        order = create_order(
+            db=db,
+            user_id=user_id,
+            customer_name=customer_name,
+            item=item,
+            quantity=quantity,
+            amount=amount,
+        )
+
+        return {
+            "success": True,
+            "order_id": order.id,
+            "customer_name": order.customer_name,
+            "item": order.item,
+            "quantity": order.quantity,
+            "amount": order.amount,
+        }
+
+    finally:
+        db.close()        
+
 
 # =========================
 # Action Registry
@@ -108,6 +178,7 @@ def execute_get_user_info(user_id: int):
 
 ACTION_HANDLERS = {
     "get_user_info": execute_get_user_info,
+    "create_order": execute_create_order,
 }
 
 
@@ -122,6 +193,15 @@ def execute_tool(
         return {
             "error": f"Unknown tool: {function_name}"
         }
+
+    if function_name == "create_order":
+        return handler(
+            user_id=user_id,
+            customer_name=arguments["customer_name"],
+            item=arguments["item"],
+            quantity=arguments["quantity"],
+            amount=arguments["amount"],
+        )
 
     return handler(
         user_id=user_id,
