@@ -25,6 +25,7 @@ def create_order(
 
     return order
 
+
 def get_orders(
     db: Session,
     user_id: int,
@@ -34,4 +35,19 @@ def get_orders(
         .filter(Order.user_id == user_id)
         .order_by(Order.id.desc())
         .all()
+    )
+
+
+def get_order(
+    db: Session,
+    user_id: int,
+    order_id: int,
+):
+    return (
+        db.query(Order)
+        .filter(
+            Order.id == order_id,
+            Order.user_id == user_id,
+        )
+        .first()
     )

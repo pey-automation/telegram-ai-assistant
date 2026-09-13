@@ -6,7 +6,11 @@ from dotenv import load_dotenv
 from groq import Groq
 
 from app.database import SessionLocal
-from app.services.order_service import create_order, get_orders
+from app.services.order_service import (
+    create_order,
+    get_order,
+    get_orders,
+)
 from app.services.user_service import get_user_info
 
 
@@ -133,8 +137,34 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_order",
+            "description": (
+                "Get a specific order belonging to the current "
+                "Telegram user."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "order_id": {
+                        "type": "integer",
+                        "description": "The ID of the order.",
+                    },
+                },
+                "required": [
+                    "order_id",
+                ],
+            },
+        },
+    },
 ]
 
+
+# =========================
+# User Actions
+# =========================
 
 def execute_get_user_info(user_id: int):
     db = SessionLocal()
@@ -163,6 +193,10 @@ def execute_get_user_info(user_id: int):
     finally:
         db.close()
 
+
+# =========================
+# Order Actions
+# =========================
 
 def send_order_to_n8n(order_data: dict):
     response = httpx.post(
@@ -251,6 +285,39 @@ def execute_get_orders(user_id: int):
         db.close()
 
 
+def execute_get_order(
+    user_id: int,
+    order_id: int,
+):
+    db = SessionLocal()
+
+    try:
+        order = get_order(
+            db=db,
+            user_id=user_id,
+            order_id=order_id,
+        )
+
+        if order is None:
+            return {
+                "found": False,
+                "message": "Order was not found.",
+            }
+
+        return {
+            "found": True,
+            "order_id": order.id,
+            "customer_name": order.customer_name,
+            "item": order.item,
+            "quantity": order.quantity,
+            "amount": order.amount,
+            "created_at": order.created_at.isoformat(),
+        }
+
+    finally:
+        db.close()
+
+
 # =========================
 # Action Registry
 # =========================
@@ -259,6 +326,7 @@ ACTION_HANDLERS = {
     "get_user_info": execute_get_user_info,
     "create_order": execute_create_order,
     "get_orders": execute_get_orders,
+    "get_order": execute_get_order,
 }
 
 
@@ -281,6 +349,12 @@ def execute_tool(
             item=arguments["item"],
             quantity=arguments["quantity"],
             amount=arguments["amount"],
+        )
+
+    if function_name == "get_order":
+        return handler(
+            user_id=user_id,
+            order_id=arguments["order_id"],
         )
 
     return handler(
