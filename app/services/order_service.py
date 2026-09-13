@@ -24,3 +24,14 @@ def create_order(
     db.refresh(order)
 
     return order
+
+def get_orders(
+    db: Session,
+    user_id: int,
+):
+    return (
+        db.query(Order)
+        .filter(Order.user_id == user_id)
+        .order_by(Order.id.desc())
+        .all()
+    )

@@ -1,12 +1,12 @@
 import json
 import os
-from app.services.order_service import create_order
-import httpx
 
+import httpx
 from dotenv import load_dotenv
 from groq import Groq
 
 from app.database import SessionLocal
+from app.services.order_service import create_order, get_orders
 from app.services.user_service import get_user_info
 
 
@@ -118,6 +118,21 @@ TOOLS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_orders",
+            "description": (
+                "Get the current Telegram user's orders "
+                "from the database."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
 ]
 
 
@@ -148,6 +163,7 @@ def execute_get_user_info(user_id: int):
     finally:
         db.close()
 
+
 def send_order_to_n8n(order_data: dict):
     response = httpx.post(
         N8N_WEBHOOK_URL,
@@ -157,7 +173,8 @@ def send_order_to_n8n(order_data: dict):
 
     response.raise_for_status()
 
-    return response.json()        
+    return response.json()
+
 
 def execute_create_order(
     user_id: int,
@@ -185,6 +202,7 @@ def execute_create_order(
             "item": order.item,
             "quantity": order.quantity,
             "amount": order.amount,
+            "created_at": order.created_at.isoformat(),
         }
 
         try:
@@ -195,7 +213,42 @@ def execute_create_order(
         return order_data
 
     finally:
-        db.close()    
+        db.close()
+
+
+def execute_get_orders(user_id: int):
+    db = SessionLocal()
+
+    try:
+        orders = get_orders(
+            db=db,
+            user_id=user_id,
+        )
+
+        if not orders:
+            return {
+                "found": False,
+                "orders": [],
+                "message": "No orders found.",
+            }
+
+        return {
+            "found": True,
+            "orders": [
+                {
+                    "order_id": order.id,
+                    "customer_name": order.customer_name,
+                    "item": order.item,
+                    "quantity": order.quantity,
+                    "amount": order.amount,
+                    "created_at": order.created_at.isoformat(),
+                }
+                for order in orders
+            ],
+        }
+
+    finally:
+        db.close()
 
 
 # =========================
@@ -205,6 +258,7 @@ def execute_create_order(
 ACTION_HANDLERS = {
     "get_user_info": execute_get_user_info,
     "create_order": execute_create_order,
+    "get_orders": execute_get_orders,
 }
 
 
@@ -264,22 +318,22 @@ def generate_ai_response(
             return response_message.content
 
         messages.append(
-    {
-        "role": "assistant",
-        "content": response_message.content or "",
-        "tool_calls": [
             {
-                "id": tool_call.id,
-                "type": "function",
-                "function": {
-                    "name": tool_call.function.name,
-                    "arguments": tool_call.function.arguments,
-                },
+                "role": "assistant",
+                "content": response_message.content or "",
+                "tool_calls": [
+                    {
+                        "id": tool_call.id,
+                        "type": "function",
+                        "function": {
+                            "name": tool_call.function.name,
+                            "arguments": tool_call.function.arguments,
+                        },
+                    }
+                    for tool_call in response_message.tool_calls
+                ],
             }
-            for tool_call in response_message.tool_calls
-        ],
-    }
-)
+        )
 
         for tool_call in response_message.tool_calls:
             function_name = tool_call.function.name
