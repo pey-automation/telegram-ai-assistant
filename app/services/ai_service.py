@@ -1,6 +1,7 @@
 import json
 import os
 from app.services.order_service import create_order
+import httpx
 
 from dotenv import load_dotenv
 from groq import Groq
@@ -16,6 +17,13 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
     raise RuntimeError(
         "GROQ_API_KEY not found in .env"
+    )
+
+N8N_WEBHOOK_URL = os.getenv("N8N_WEBHOOK_URL")
+
+if not N8N_WEBHOOK_URL:
+    raise RuntimeError(
+        "N8N_WEBHOOK_URL not found in .env"
     )
 
 
@@ -140,6 +148,17 @@ def execute_get_user_info(user_id: int):
     finally:
         db.close()
 
+def send_order_to_n8n(order_data: dict):
+    response = httpx.post(
+        N8N_WEBHOOK_URL,
+        json=order_data,
+        timeout=10,
+    )
+
+    response.raise_for_status()
+
+    return response.json()        
+
 def execute_create_order(
     user_id: int,
     customer_name: str,
@@ -159,7 +178,7 @@ def execute_create_order(
             amount=amount,
         )
 
-        return {
+        order_data = {
             "success": True,
             "order_id": order.id,
             "customer_name": order.customer_name,
@@ -168,8 +187,15 @@ def execute_create_order(
             "amount": order.amount,
         }
 
+        try:
+            send_order_to_n8n(order_data)
+        except Exception as exc:
+            print(f"n8n automation failed: {exc}")
+
+        return order_data
+
     finally:
-        db.close()        
+        db.close()    
 
 
 # =========================
